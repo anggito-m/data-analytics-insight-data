@@ -214,11 +214,67 @@ with overview_tab:
     
     st.markdown("---")
 
+    # --- AUTOMATED DATA HIGHLIGHTS (NLG) ---
+    st.subheader("💡 Automated Data Highlights")
+    
+    # 1. Insight: Market Dominance
+    if not filtered_df.empty:
+        top_client_data = filtered_df.groupby('client_name')['purchase_value'].sum().sort_values(ascending=False).head(1)
+        top_client_name = top_client_data.index[0]
+        top_client_val = top_client_data.values[0]
+        total_rev = filtered_df['purchase_value'].sum()
+        dominance_pct = (top_client_val / total_rev * 100) if total_rev > 0 else 0
+        
+        insight_1 = f"**{top_client_name}** mendominasi pasar dengan kontribusi omzet sebesar **{dominance_pct:.1f}%** dari total pendapatan."
+    else:
+        insight_1 = "Data tidak cukup untuk analisis dominasi pasar."
+
+    # 2. Insight: Cost Trend
+    if not prev_filtered_df.empty:
+        spend_diff = curr_spend - prev_spend
+        spend_pct = (spend_diff / prev_spend * 100) if prev_spend > 0 else 0
+        trend_text = "naik" if spend_diff > 0 else "turun"
+        insight_2 = f"Total biaya iklan (Spend) **{trend_text} {abs(spend_pct):.1f}%** dibandingkan periode sebelumnya."
+    else:
+        insight_2 = "Perbandingan biaya dengan periode lalu tidak tersedia."
+
+    # 3. Insight: Efficiency Winner
+    if not filtered_df.empty:
+        best_obj_data = filtered_df.groupby('campaign_objective')['roas'].mean().sort_values(ascending=False).head(1)
+        best_obj_name = best_obj_data.index[0]
+        best_obj_val = best_obj_data.values[0]
+        insight_3 = f"Strategi **{best_obj_name}** adalah yang paling efisien dengan rata-rata ROAS **{best_obj_val:.2f}x**."
+    else:
+        insight_3 = "Data ROAS tidak tersedia."
+
+    st.info(f"""
+    *   {insight_1}
+    *   {insight_2}
+    *   {insight_3}
+    """)
+    
+    st.markdown("---")
+
     # 4. Visualisasi Utama (KPI Charts)
     col_chart1, col_chart2 = st.columns(2)
 
-    # Grafik 1 (Line Chart): Tren Bulanan
+    # Grafik 1 (Line Chart): Tren Bulanan with Anomaly Detection
     daily_trend = filtered_df.groupby('created_date')[['amount_spent', 'purchase_value']].sum().reset_index()
+    
+    # --- ANOMALY DETECTION LOGIC ---
+    try:
+        if len(daily_trend) > 7:
+            daily_trend['rolling_mean'] = daily_trend['purchase_value'].rolling(window=7).mean()
+            daily_trend['rolling_std'] = daily_trend['purchase_value'].rolling(window=7).std()
+            # Define Anomaly: Value > Mean + 2*Std (Spike) or Value < Mean - 2*Std (Drop)
+            daily_trend['is_anomaly'] = ((daily_trend['purchase_value'] > (daily_trend['rolling_mean'] + 2 * daily_trend['rolling_std'])) | 
+                                         (daily_trend['purchase_value'] < (daily_trend['rolling_mean'] - 2 * daily_trend['rolling_std'])))
+            anomalies = daily_trend[daily_trend['is_anomaly']]
+        else:
+            anomalies = pd.DataFrame()
+    except Exception:
+        anomalies = pd.DataFrame()
+
     daily_trend_melted = daily_trend.melt(id_vars='created_date', value_vars=['amount_spent', 'purchase_value'], var_name='Metric', value_name='Value')
 
     fig_line = px.line(
@@ -226,9 +282,22 @@ with overview_tab:
         x='created_date', 
         y='Value', 
         color='Metric',
-        title="Daily Trend: Spend vs Purchase Value",
+        title="Daily Trend: Spend vs Purchase Value (with Anomaly Detection)",
         template="plotly_white"
     )
+    
+    # Add Anomaly Markers
+    if not anomalies.empty:
+        fig_line.add_trace(go.Scatter(
+            x=anomalies['created_date'],
+            y=anomalies['purchase_value'],
+            mode='markers',
+            name='Anomaly (Spike/Drop)',
+            marker=dict(color='red', size=10, symbol='x'),
+            text=['Anomaly Detected'] * len(anomalies),
+            hoverinfo='text+x+y'
+        ))
+
     col_chart1.plotly_chart(fig_line, use_container_width=True)
 
     # Grafik 2 (Pie Chart - New): Proporsi Spend by Client
@@ -392,7 +461,7 @@ with deep_dive_tab:
     """, unsafe_allow_html=True)
 
     # Navigation Options
-    nav_options = ['📈 Time & Trend Analysis', '🏢 Industry & Client Breakdown', '🎯 Strategy & Quadrant Matrix']
+    nav_options = ['📈 Time & Trend Analysis', '🏢 Industry & Client Breakdown', '🔻 Marketing Funnel Analysis', '🎯 Strategy & Quadrant Matrix']
     
     # Render Navigation (Radio)
     selection = st.radio(
@@ -505,12 +574,25 @@ with deep_dive_tab:
         )
         st.plotly_chart(fig_b1, use_container_width=True)
 
-        # B.2: Tren Harian (Daily Revenue) dengan Highlight Ramadhan
+        # B.2: Tren Harian (Daily Revenue) dengan Highlight Ramadhan & Anomaly
+        # --- ANOMALY DETECTION LOGIC (TAB 2) ---
+        try:
+            if len(daily_trend) > 7:
+                daily_trend['rolling_mean'] = daily_trend['purchase_value'].rolling(window=7).mean()
+                daily_trend['rolling_std'] = daily_trend['purchase_value'].rolling(window=7).std()
+                daily_trend['is_anomaly'] = ((daily_trend['purchase_value'] > (daily_trend['rolling_mean'] + 2 * daily_trend['rolling_std'])) | 
+                                             (daily_trend['purchase_value'] < (daily_trend['rolling_mean'] - 2 * daily_trend['rolling_std'])))
+                anomalies_b2 = daily_trend[daily_trend['is_anomaly']]
+            else:
+                anomalies_b2 = pd.DataFrame()
+        except Exception:
+            anomalies_b2 = pd.DataFrame()
+
         fig_b2 = px.line(
             daily_trend, 
             x='created_date', 
             y='purchase_value', 
-            title='B.2: Tren Omzet Harian (Daily Revenue)',
+            title='B.2: Tren Omzet Harian (with Anomaly Detection)',
             labels={'purchase_value': 'Omzet Harian', 'created_date': 'Tanggal'},
             line_shape='linear'
         )
@@ -526,6 +608,19 @@ with deep_dive_tab:
             layer="below", line_width=0,
             annotation_text="Ramadhan", annotation_position="top left"
         )
+        
+        # Add Anomaly Markers
+        if not anomalies_b2.empty:
+            fig_b2.add_trace(go.Scatter(
+                x=anomalies_b2['created_date'],
+                y=anomalies_b2['purchase_value'],
+                mode='markers',
+                name='Anomaly',
+                marker=dict(color='red', size=8, symbol='x'),
+                text=['Anomaly Detected'] * len(anomalies_b2),
+                hoverinfo='text+x+y'
+            ))
+            
         st.plotly_chart(fig_b2, use_container_width=True)
 
         # B.3: Seasonality Impact (Side by Side)
@@ -700,7 +795,78 @@ with deep_dive_tab:
 
 
     # ---------------------------------------------------------------------
-    # SECTION 3: Strategic Analysis (Quadrant & Simulation)
+    # SECTION 3: Marketing Funnel Analysis
+    # ---------------------------------------------------------------------
+    elif selection == '🔻 Marketing Funnel Analysis':
+        st.header("4. Marketing Conversion Funnel")
+        st.markdown("""
+        **Memahami Perjalanan Pelanggan (Customer Journey):**
+        Visualisasi di bawah ini adalah **Corong Penjualan (Sales Funnel)** yang menunjukkan seberapa efektif iklan Anda menggiring audiens dari sekadar "Melihat" hingga "Membeli".
+        
+        **Urutan Tahapan:**
+        1.  👀 **Impressions (Views):** Total kali iklan Anda muncul di layar. (Tahap *Awareness*)
+        2.  👆 **Clicks (Traffic):** Jumlah orang yang tertarik dan mengklik iklan Anda. (Tahap *Interest*)
+        3.  🛒 **Add to Cart (Intent):** Jumlah orang yang cukup serius hingga memasukkan produk ke keranjang. (Tahap *Desire*)
+        4.  💰 **Purchase (Sales):** Jumlah orang yang akhirnya menyelesaikan pembayaran. (Tahap *Action*)
+        
+        *Analisis ini krusial untuk menemukan "kebocoran" (drop-off). Misalnya, jika banyak Klik tapi sedikit Purchase, mungkin ada masalah di Website/Harga.*
+        """)
+
+        # 1. Prepare Funnel Data
+        # Check if 'add_to_cart' exists in columns, if not use 0
+        atc_val = filtered_df['add_to_cart'].sum() if 'add_to_cart' in filtered_df.columns else 0
+        
+        funnel_data = dict(
+            number=[
+                filtered_df['impressions'].sum(),
+                filtered_df['clicks'].sum(),
+                atc_val,
+                filtered_df['purchase'].sum()
+            ],
+            stage=["Impressions (Views)", "Clicks (Traffic)", "Add to Cart (Intent)", "Purchase (Sales)"]
+        )
+        funnel_df = pd.DataFrame(funnel_data)
+        
+        # 2. Visualization
+        col_funnel1, col_funnel2 = st.columns([3, 1])
+        
+        with col_funnel1:
+            fig_funnel = px.funnel(
+                funnel_df, 
+                x='number', 
+                y='stage', 
+                title="<b>Marketing Conversion Funnel</b>",
+                template="plotly_white",
+                color='stage',
+                color_discrete_sequence=px.colors.qualitative.Safe
+            )
+            fig_funnel.update_traces(textinfo="value+percent previous")
+            st.plotly_chart(fig_funnel, use_container_width=True)
+            
+        with col_funnel2:
+            st.subheader("Conversion Rates")
+            
+            # CTR
+            ctr = (funnel_data['number'][1] / funnel_data['number'][0] * 100) if funnel_data['number'][0] > 0 else 0
+            st.metric("CTR (View to Click)", f"{ctr:.2f}%", help="Persentase audiens yang mengklik iklan setelah melihatnya. (Benchmark Global: 1-2%)")
+            
+            # Click to ATC
+            atc_rate = (funnel_data['number'][2] / funnel_data['number'][1] * 100) if funnel_data['number'][1] > 0 else 0
+            st.metric("Click to Cart Rate", f"{atc_rate:.2f}%", help="Persentase pengunjung yang tertarik hingga memasukkan produk ke keranjang. Jika rendah, periksa konten Landing Page.")
+            
+            # Cart to Purchase
+            cart_conv = (funnel_data['number'][3] / funnel_data['number'][2] * 100) if funnel_data['number'][2] > 0 else 0
+            st.metric("Cart to Purchase", f"{cart_conv:.2f}%", help="Persentase user yang 'Check Out' dan membayar. Jika rendah, periksa harga atau kemudahan metode pembayaran.")
+            
+            # Overall Conv Rate
+            overall_cv = (funnel_data['number'][3] / funnel_data['number'][1] * 100) if funnel_data['number'][1] > 0 else 0
+            st.metric("Overall CV Rate", f"{overall_cv:.2f}%", help="Conversion Rate total dari Klik hingga Purchase. (Benchmark E-commerce: 2-3%)")
+
+        st.info("💡 **Tips:** Jika *CTR* rendah, perbaiki kreatif iklan (Gambar/Video). Jika *Click-to-Cart* rendah, perbaiki Landing Page. Jika *Cart-to-Purchase* rendah, perbaiki proses Checkout/Harga.")
+
+
+    # ---------------------------------------------------------------------
+    # SECTION 4: Strategic Analysis (Quadrant & Simulation)
     # ---------------------------------------------------------------------
     elif selection == '🎯 Strategy & Quadrant Matrix':
         st.header("Analisis Strategis: Pemetaan Masalah & Simulasi Solusi")
