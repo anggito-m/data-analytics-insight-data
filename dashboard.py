@@ -1084,7 +1084,39 @@ with deep_dive_tab:
             else:
                 st.error(f"⚠️ **Peringatan:** Strategi ini MERUGIKAN. Jangan pindahkan budget ke klien dengan ROAS lebih rendah.")
             
-            st.caption("ℹ️ *Catatan: Simulasi ini menggunakan asumsi 'Linear Growth' (ROAS konstan). Hasil aktual dapat bervariasi tergantung pada kapasitas pasar (market saturation) dan skalabilitas produk.*")
+            with st.expander("ℹ️  Catatan Teknis: Asumsi & Logika Simulasi", expanded=True):
+                st.markdown("Simulasi ini menggunakan model matematika sederhana untuk estimasi cepat. Harap perhatikan 3 asumsi dasar berikut:")
+                
+                asm_col1, asm_col2, asm_col3 = st.columns(3)
+                
+                with asm_col1:
+                    st.markdown("#### 📈 1. Linear Growth")
+                    st.caption("*Elastisitas Sempurna*")
+                    st.markdown("""
+                    **Konsep:** ROAS dianggap konstan (*Constant Return to Scale*).
+                    
+                    **Contoh:** Jika budget ditambah **Rp 100 Juta** pada klien dengan ROAS 2x, maka omzet diproyeksikan naik tepat **Rp 200 Juta**.
+                    
+                    ⚠️ **Realita:** Di lapangan sering terjadi *Diminishing Return* (efisiensi menurun seiring besarnya budget).
+                    """)
+
+                with asm_col2:
+                    st.markdown("#### 🌊 2. Market Capacity")
+                    st.caption("*Ketersediaan Pasar*")
+                    st.markdown("""
+                    **Konsep:** Pasar belum jenuh (*Headroom Available*).
+                    
+                    Kita mengasumsikan target audiens masih cukup luas untuk menyerap tambahan iklan ini tanpa menyebabkan biaya iklan (CPC/CPM) melonjak drastis secara tiba-tiba.
+                    """)
+                    
+                with asm_col3:
+                    st.markdown("#### 🎨 3. Creative Stability")
+                    st.caption("*Kualitas Konten Stabil*")
+                    st.markdown("""
+                    **Konsep:** Performa materi iklan konsisten.
+                    
+                    Kita mengasumsikan materi iklan (Gambar/Video) yang ada saat ini masih relevan dan efektif ("Winning Campaign") meskipun frekuensi penayangan ditingkatkan.
+                    """)
         
 
 # =====================================================================
