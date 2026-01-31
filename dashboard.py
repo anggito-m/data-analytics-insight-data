@@ -1004,6 +1004,88 @@ with deep_dive_tab:
 
         st.plotly_chart(fig_quadrant, use_container_width=True)
         
+        st.markdown("---")
+        
+        # --- SIMULATOR TINGKAT LANJUT (ANTAR KLIEN) ---
+        st.subheader("🔀 Simulator Tingkat Lanjut: Realokasi Antar Klien")
+        st.markdown("Gunakan alat ini untuk memindahkan budget dari **Klien Boros (ROAS Rendah)** ke **Klien Potensial (ROAS Tinggi)**.")
+        
+        sim_col1, sim_col2, sim_col3 = st.columns(3)
+        
+        # 1. Pilih Source (Asal Dana)
+        with sim_col1:
+            # Sort clients by ROAS ascending (Lowest ROAS first - candidates for cut)
+            client_roas_sorted = client_matrix.sort_values('roas', ascending=True)
+            source_client = st.selectbox("Ambil Budget Dari (Source):", client_roas_sorted['client_name'].unique())
+            
+            source_data = client_matrix[client_matrix['client_name'] == source_client].iloc[0]
+            st.caption(f"ROAS Saat Ini: **{source_data['roas']:.2f}x** | Spend: {format_idr(source_data['amount_spent'])}")
+            
+        # 2. Pilih Target (Tujuan Dana)
+        with sim_col2:
+            # Sort clients by ROAS descending (Highest ROAS first - candidates for boost)
+            client_roas_desc = client_matrix.sort_values('roas', ascending=False)
+            # Exclude selected source
+            target_opts = [c for c in client_roas_desc['client_name'].unique() if c != source_client]
+            target_client = st.selectbox("Pindahkan Ke (Target):", target_opts)
+            
+            if target_client:
+                target_data = client_matrix[client_matrix['client_name'] == target_client].iloc[0]
+                st.caption(f"ROAS Saat Ini: **{target_data['roas']:.2f}x** | Spend: {format_idr(target_data['amount_spent'])}")
+            else:
+                target_data = None
+
+        # 3. Tentukan Nominal / Persentase
+        with sim_col3:
+            transfer_pct = st.slider("Persentase Budget Source yg Dipindah:", 0, 100, 20, 5)
+            transfer_amount = source_data['amount_spent'] * (transfer_pct / 100)
+            st.caption(f"Nominal Dipindah: **{format_idr(transfer_amount)}**")
+
+        # 4. Hitung Dampak (Impact Calculation)
+        if target_client:
+            # Revenue Lost from Source
+            rev_lost = transfer_amount * source_data['roas']
+            # Revenue Gained from Target (Assume Linear Growth with Target's ROAS)
+            rev_gained = transfer_amount * target_data['roas']
+            
+            net_revenue_impact = rev_gained - rev_lost
+            
+            # Global Metrics Update
+            new_total_rev = current_total_rev + net_revenue_impact
+            # Total Spend stays same (just shifted)
+            total_spend_global = filtered_df['amount_spent'].sum()
+            
+            old_global_roas = current_total_rev / total_spend_global if total_spend_global > 0 else 0
+            new_global_roas = new_total_rev / total_spend_global if total_spend_global > 0 else 0
+            
+            # Display Results
+            st.markdown("#### 📊 Proyeksi Dampak Bisnis:")
+            res1, res2, res3 = st.columns(3)
+            
+            res1.metric(
+                "Net Revenue Impact", 
+                format_idr(net_revenue_impact), 
+                delta="Positif" if net_revenue_impact > 0 else "Negatif"
+            )
+            
+            res2.metric(
+                "Old ROAS (Global)", 
+                f"{old_global_roas:.2f}x"
+            )
+            
+            res3.metric(
+                "New ROAS (Global)", 
+                f"{new_global_roas:.2f}x",
+                delta=f"{(new_global_roas - old_global_roas):.3f} pts"
+            )
+            
+            if net_revenue_impact > 0:
+                st.success(f"✅ **Rekomendasi:** Strategi ini MENGUNTUNGKAN. Anda mendapatkan tambahan omzet **{format_idr(net_revenue_impact)}** hanya dengan memindahkan budget.")
+            else:
+                st.error(f"⚠️ **Peringatan:** Strategi ini MERUGIKAN. Jangan pindahkan budget ke klien dengan ROAS lebih rendah.")
+            
+            st.caption("ℹ️ *Catatan: Simulasi ini menggunakan asumsi 'Linear Growth' (ROAS konstan). Hasil aktual dapat bervariasi tergantung pada kapasitas pasar (market saturation) dan skalabilitas produk.*")
+        
 
 # =====================================================================
 # TAB 3: Business Insight & Strategic Recommendation
