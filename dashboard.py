@@ -798,7 +798,7 @@ with deep_dive_tab:
     # SECTION 3: Marketing Funnel Analysis
     # ---------------------------------------------------------------------
     elif selection == '🔻 Marketing Funnel Analysis':
-        st.header("4. Marketing Conversion Funnel")
+        st.header("Marketing Conversion Funnel")
         st.markdown("""
         **Memahami Perjalanan Pelanggan (Customer Journey):**
         Visualisasi di bawah ini adalah **Corong Penjualan (Sales Funnel)** yang menunjukkan seberapa efektif iklan Anda menggiring audiens dari sekadar "Melihat" hingga "Membeli".
